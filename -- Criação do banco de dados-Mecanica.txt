@@ -1,0 +1,144 @@
+-- Criação do banco de dados
+CREATE DATABASE Oficina;
+USE Oficina;
+
+-- Tabela de Clientes
+CREATE TABLE Cliente (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    telefone VARCHAR(20) NOT NULL,
+    cpf_cnpj VARCHAR(20) UNIQUE NOT NULL,
+    tipo ENUM('PF', 'PJ') NOT NULL,
+    CHECK ((tipo = 'PF' AND LENGTH(cpf_cnpj) = 11) OR (tipo = 'PJ' AND LENGTH(cpf_cnpj) = 14))
+);
+
+-- Tabela de Veículos
+CREATE TABLE Veiculo (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT NOT NULL,
+    placa VARCHAR(10) UNIQUE NOT NULL,
+    marca VARCHAR(100) NOT NULL,
+    modelo VARCHAR(100) NOT NULL,
+    ano INT NOT NULL,
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
+);
+
+-- Tabela de Mecânicos
+CREATE TABLE Mecanico (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    especialidade VARCHAR(255) NOT NULL
+);
+
+-- Tabela de Serviços
+CREATE TABLE Servico (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    descricao VARCHAR(255) NOT NULL,
+    preco DECIMAL(10,2) NOT NULL
+);
+
+-- Tabela de Ordens de Serviço
+CREATE TABLE Ordem_Servico (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    veiculo_id INT NOT NULL,
+    mecanico_id INT NOT NULL,
+    data_abertura DATETIME DEFAULT CURRENT_TIMESTAMP,
+    data_conclusao DATETIME NULL,
+    status ENUM('Aberta', 'Em andamento', 'Concluída', 'Cancelada') NOT NULL,
+    FOREIGN KEY (veiculo_id) REFERENCES Veiculo(id),
+    FOREIGN KEY (mecanico_id) REFERENCES Mecanico(id)
+);
+
+-- Tabela de Itens da Ordem de Serviço
+CREATE TABLE Ordem_Servico_Item (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ordem_servico_id INT NOT NULL,
+    servico_id INT NOT NULL,
+    quantidade INT NOT NULL,
+    preco_unitario DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (ordem_servico_id) REFERENCES Ordem_Servico(id),
+    FOREIGN KEY (servico_id) REFERENCES Servico(id)
+);
+
+-- Tabela de Pagamentos
+CREATE TABLE Pagamento (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ordem_servico_id INT NOT NULL,
+    data_pagamento DATETIME DEFAULT CURRENT_TIMESTAMP,
+    valor_pago DECIMAL(10,2) NOT NULL,
+    forma_pagamento ENUM('Dinheiro', 'Cartão de Crédito', 'Cartão de Débito', 'Pix', 'Boleto') NOT NULL,
+    FOREIGN KEY (ordem_servico_id) REFERENCES Ordem_Servico(id)
+);
+
+-- Inserção de dados para testes
+INSERT INTO Cliente (nome, email, telefone, cpf_cnpj, tipo) VALUES
+('Carlos Silva', 'carlos@email.com', '11999999999', '12345678901', 'PF'),
+('Auto Peças LTDA', 'contato@autopecas.com', '1133334444', '12345678000199', 'PJ');
+
+INSERT INTO Veiculo (cliente_id, placa, marca, modelo, ano) VALUES
+(1, 'ABC1D23', 'Toyota', 'Corolla', 2020),
+(2, 'XYZ4E56', 'Honda', 'Civic', 2018);
+
+INSERT INTO Mecanico (nome, especialidade) VALUES
+('João Souza', 'Motor e Suspensão'),
+('Pedro Lima', 'Elétrica e Diagnóstico');
+
+INSERT INTO Servico (descricao, preco) VALUES
+('Troca de óleo', 150.00),
+('Alinhamento e balanceamento', 200.00),
+('Revisão elétrica', 300.00);
+
+INSERT INTO Ordem_Servico (veiculo_id, mecanico_id, data_abertura, status) VALUES
+(1, 1, '2025-04-01 08:00:00', 'Em andamento'),
+(2, 2, '2025-04-02 10:30:00', 'Aberta');
+
+INSERT INTO Ordem_Servico_Item (ordem_servico_id, servico_id, quantidade, preco_unitario) VALUES
+(1, 1, 1, 150.00),
+(1, 2, 1, 200.00),
+(2, 3, 1, 300.00);
+
+INSERT INTO Pagamento (ordem_servico_id, data_pagamento, valor_pago, forma_pagamento) VALUES
+(1, '2025-04-03 14:00:00', 350.00, 'Pix');
+
+-- Consultas SQL complexas
+
+-- 1. Quantos veículos cada cliente possui?
+SELECT c.nome, COUNT(v.id) AS total_veiculos
+FROM Cliente c
+LEFT JOIN Veiculo v ON c.id = v.cliente_id
+GROUP BY c.nome;
+
+-- 2. Quantidade de serviços realizados por cada mecânico
+SELECT m.nome, COUNT(os.id) AS total_ordens
+FROM Mecanico m
+LEFT JOIN Ordem_Servico os ON m.id = os.mecanico_id
+GROUP BY m.nome;
+
+-- 3. Lista de serviços realizados em uma ordem de serviço específica
+SELECT os.id AS ordem_id, s.descricao, osi.quantidade, osi.preco_unitario
+FROM Ordem_Servico os
+JOIN Ordem_Servico_Item osi ON os.id = osi.ordem_servico_id
+JOIN Servico s ON osi.servico_id = s.id
+WHERE os.id = 1;
+
+-- 4. Total faturado por cada mecânico
+SELECT m.nome, SUM(osi.quantidade * osi.preco_unitario) AS total_faturado
+FROM Mecanico m
+JOIN Ordem_Servico os ON m.id = os.mecanico_id
+JOIN Ordem_Servico_Item osi ON os.id = osi.ordem_servico_id
+GROUP BY m.nome;
+
+-- 5. Clientes com mais de uma ordem de serviço
+SELECT c.nome, COUNT(os.id) AS total_ordens
+FROM Cliente c
+JOIN Veiculo v ON c.id = v.cliente_id
+JOIN Ordem_Servico os ON v.id = os.veiculo_id
+GROUP BY c.nome
+HAVING total_ordens > 1;
+
+-- 6. Lista de ordens de serviço com seus status e mecânicos responsáveis
+SELECT os.id, os.status, m.nome AS mecanico
+FROM Ordem_Servico os
+JOIN Mecanico m ON os.mecanico_id = m.id
+ORDER BY os.data_abertura DESC;
