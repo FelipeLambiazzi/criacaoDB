@@ -1,0 +1,159 @@
+-- Criação do banco de dados
+CREATE DATABASE Ecommerce;
+USE Ecommerce;
+
+-- Tabela de Clientes (Cliente pode ser PJ ou PF)
+CREATE TABLE Cliente (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    telefone VARCHAR(20),
+    tipo ENUM('PF', 'PJ') NOT NULL,
+    cpf_cnpj VARCHAR(20) UNIQUE NOT NULL,
+    CHECK ((tipo = 'PF' AND LENGTH(cpf_cnpj) = 11) OR (tipo = 'PJ' AND LENGTH(cpf_cnpj) = 14))
+);
+
+-- Tabela de Endereços
+CREATE TABLE Endereco (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT,
+    logradouro VARCHAR(255) NOT NULL,
+    numero VARCHAR(10) NOT NULL,
+    complemento VARCHAR(255),
+    cidade VARCHAR(100) NOT NULL,
+    estado VARCHAR(2) NOT NULL,
+    cep VARCHAR(10) NOT NULL,
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
+);
+
+-- Tabela de Pagamentos
+CREATE TABLE Pagamento (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT NOT NULL,
+    tipo ENUM('Cartão de Crédito', 'Boleto', 'Pix', 'Transferência Bancária') NOT NULL,
+    detalhes VARCHAR(255),
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
+);
+
+-- Tabela de Pedidos
+CREATE TABLE Pedido (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT NOT NULL,
+    data_pedido DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('Em processamento', 'Enviado', 'Entregue', 'Cancelado') NOT NULL,
+    codigo_rastreamento VARCHAR(50),
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(id)
+);
+
+-- Tabela de Fornecedores
+CREATE TABLE Fornecedor (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    contato VARCHAR(255),
+    email VARCHAR(255) UNIQUE
+);
+
+-- Tabela de Produtos
+CREATE TABLE Produto (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    descricao TEXT,
+    preco DECIMAL(10,2) NOT NULL,
+    fornecedor_id INT NOT NULL,
+    FOREIGN KEY (fornecedor_id) REFERENCES Fornecedor(id)
+);
+
+-- Tabela de Estoque
+CREATE TABLE Estoque (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    produto_id INT NOT NULL,
+    quantidade INT NOT NULL,
+    FOREIGN KEY (produto_id) REFERENCES Produto(id)
+);
+
+-- Tabela de Itens do Pedido
+CREATE TABLE Pedido_Item (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    pedido_id INT NOT NULL,
+    produto_id INT NOT NULL,
+    quantidade INT NOT NULL,
+    preco_unitario DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (pedido_id) REFERENCES Pedido(id),
+    FOREIGN KEY (produto_id) REFERENCES Produto(id)
+);
+
+-- Inserção de dados para testes
+INSERT INTO Cliente (nome, email, telefone, tipo, cpf_cnpj) VALUES
+('João Silva', 'joao@email.com', '11999999999', 'PF', '12345678901'),
+('Empresa XYZ', 'contato@xyz.com', '1133334444', 'PJ', '12345678000199');
+
+INSERT INTO Fornecedor (nome, contato, email) VALUES
+('Fornecedor A', '11987654321', 'fornecedorA@email.com'),
+('Fornecedor B', '11876543210', 'fornecedorB@email.com');
+
+INSERT INTO Produto (nome, descricao, preco, fornecedor_id) VALUES
+('Celular X', 'Smartphone de última geração', 2500.00, 1),
+('Notebook Y', 'Laptop potente para trabalho', 4500.00, 2);
+
+INSERT INTO Estoque (produto_id, quantidade) VALUES
+(1, 50),
+(2, 30);
+
+INSERT INTO Pedido (cliente_id, data_pedido, status, codigo_rastreamento) VALUES
+(1, '2025-04-01 10:00:00', 'Enviado', 'R123456789BR'),
+(2, '2025-04-02 15:30:00', 'Em processamento', NULL);
+
+INSERT INTO Pedido_Item (pedido_id, produto_id, quantidade, preco_unitario) VALUES
+(1, 1, 1, 2500.00),
+(2, 2, 1, 4500.00);
+
+-- Consultas SQL complexas
+
+-- 1. Quantos pedidos foram feitos por cada cliente?
+SELECT c.id, c.nome, COUNT(p.id) AS total_pedidos 
+FROM Cliente c 
+LEFT JOIN Pedido p ON c.id = p.cliente_id 
+GROUP BY c.id, c.nome;
+
+-- 2. Algum vendedor também é fornecedor?
+SELECT DISTINCT c.nome AS vendedor, f.nome AS fornecedor
+FROM Cliente c 
+JOIN Fornecedor f ON c.nome = f.nome;
+
+-- 3. Relação de produtos, fornecedores e estoques
+SELECT p.nome AS produto, f.nome AS fornecedor, e.quantidade AS estoque 
+FROM Produto p 
+JOIN Fornecedor f ON p.fornecedor_id = f.id 
+JOIN Estoque e ON p.id = e.produto_id;
+
+-- 4. Relação de nomes dos fornecedores e nomes dos produtos
+SELECT f.nome AS fornecedor, p.nome AS produto
+FROM Fornecedor f 
+JOIN Produto p ON f.id = p.fornecedor_id;
+
+-- 5. Recuperação simples de pedidos
+SELECT * FROM Pedido;
+
+-- 6. Filtrar pedidos "Enviados"
+SELECT * FROM Pedido WHERE status = 'Enviado';
+
+-- 7. Gerar um atributo derivado "valor_total" do pedido
+SELECT p.id, SUM(pi.quantidade * pi.preco_unitario) AS valor_total
+FROM Pedido p
+JOIN Pedido_Item pi ON p.id = pi.pedido_id
+GROUP BY p.id;
+
+-- 8. Ordenação de clientes por nome
+SELECT * FROM Cliente ORDER BY nome ASC;
+
+-- 9. Filtrar clientes com mais de 1 pedido
+SELECT c.id, c.nome, COUNT(p.id) AS total_pedidos
+FROM Cliente c
+JOIN Pedido p ON c.id = p.cliente_id
+GROUP BY c.id, c.nome
+HAVING total_pedidos > 1;
+
+-- 10. Junção de pedidos com clientes
+SELECT p.id, c.nome, p.data_pedido, p.status
+FROM Pedido p
+JOIN Cliente c ON p.cliente_id = c.id;
